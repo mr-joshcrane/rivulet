@@ -1,6 +1,7 @@
 package rivulet_test
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -11,30 +12,52 @@ import (
 
 func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
 	t.Parallel()
-	producer, store, wait := helperNewProducerWithBackingStore(t, "name")
-	err := producer.Publish("line1\n", "line2\n", "line3")
-	if err != nil {
-		t.Errorf("got %v, want nil", err)
+	cases := []struct {
+		description string
+		store       rivulet.Store
+	}{
+		{
+			description: "file store",
+			store: func() rivulet.Store {
+				dir := fmt.Sprintf(t.TempDir(), "test.txt")
+				s, _ := store.NewFileStore(dir)
+				return s
+			}(),
+		},
+		{
+			description: "memory store",
+			store:       store.NewMemoryStore(),
+		},
 	}
-	wait()
-	got := store.Read()
-	want := "line1\nline2\nline3"
-	if got != want {
-		t.Errorf(cmp.Diff(got, want))
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			store := tc.store
+			producer, wait := helperNewProducerWithBackingStore(t, store)
+			err := producer.Publish("line1\n", "line2\n", "line3")
+			if err != nil {
+				t.Errorf("got %v, want nil", err)
+			}
+			wait()
+			got := store.Read()
+			want := "line1\nline2\nline3"
+			if got != want {
+				t.Errorf(cmp.Diff(got, want))
+			}
+		})
 	}
+
 }
 
-func helperNewProducerWithBackingStore(t *testing.T, name string) (*rivulet.Producer, rivulet.Store, func()) {
+func helperNewProducerWithBackingStore(t *testing.T, s rivulet.Store) (*rivulet.Producer, func()) {
 	t.Helper()
-	store := store.NewStore()
-	producer := rivulet.NewProducer(name, rivulet.WithStore(store))
+	producer := rivulet.NewProducer("test", rivulet.WithStore(s))
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		store.Receive()
+		s.Receive()
 		wg.Done()
 	}()
-	return producer, store, func() {
+	return producer, func() {
 		producer.Close()
 		wg.Wait()
 	}

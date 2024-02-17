@@ -17,7 +17,7 @@ func (s *MemoryStore) Receive() {
 	}
 }
 
-func NewStore() *MemoryStore {
+func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		buf: bytes.Buffer{},
 	}
