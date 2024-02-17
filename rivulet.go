@@ -13,7 +13,6 @@ func (s *Store) Receive() {
 	for {
 		data, ok := <-s.input
 		if !ok {
-			s.Write(data)
 			return
 		}
 		s.Write(data)
