@@ -11,13 +11,12 @@ type Store struct {
 
 func (s *Store) Receive() {
 	for {
-		select {
-		case data, ok := <-s.input:
-			if !ok {
-				return
-			}
-			s.buf.WriteString(data)
+		data, ok := <-s.input
+		if !ok {
+			s.Write(data)
+			return
 		}
+		s.Write(data)
 	}
 }
 
@@ -46,14 +45,15 @@ func NewProducer(name string, options ...ProducerOptions) *Producer {
 	return p
 }
 
-func (p *Producer) Publish(dataStream chan (string)) error {
-	for data := range dataStream {
+func (p *Producer) Publish(s ...string) error {
+	for _, data := range s {
 		p.output <- data
 	}
 	return nil
 }
 
 func (p *Producer) Close() {
+	close(p.output)
 }
 
 func NewStore() *Store {
@@ -68,8 +68,4 @@ func (s *Store) Write(data string) {
 
 func (s *Store) Read() string {
 	return s.buf.String()
-}
-
-func (s *Store) Close() {
-	close(s.input)
 }
