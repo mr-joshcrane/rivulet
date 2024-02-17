@@ -1,22 +1,10 @@
 package rivulet
 
-import (
-	"bytes"
-)
-
-type Store struct {
-	input chan (string)
-	buf   bytes.Buffer
-}
-
-func (s *Store) Receive() {
-	for {
-		data, ok := <-s.input
-		if !ok {
-			return
-		}
-		s.Write(data)
-	}
+type Store interface {
+	Receive()
+	Write(data string)
+	Read() string
+	Register(chan (string))
 }
 
 type Producer struct {
@@ -26,9 +14,9 @@ type Producer struct {
 
 type ProducerOptions func(*Producer)
 
-func WithStore(s *Store) ProducerOptions {
+func WithStore(s Store) ProducerOptions {
 	c := make(chan (string))
-	s.input = c
+	s.Register(c)
 	return func(p *Producer) {
 		p.output = c
 	}
@@ -53,18 +41,4 @@ func (p *Producer) Publish(s ...string) error {
 
 func (p *Producer) Close() {
 	close(p.output)
-}
-
-func NewStore() *Store {
-	return &Store{
-		buf: bytes.Buffer{},
-	}
-}
-
-func (s *Store) Write(data string) {
-	s.buf.WriteString(data)
-}
-
-func (s *Store) Read() string {
-	return s.buf.String()
 }

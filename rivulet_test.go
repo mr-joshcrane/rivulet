@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/mr-joshcrane/rivulet"
+	"github.com/mr-joshcrane/rivulet/store"
 )
 
 func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
@@ -23,9 +24,9 @@ func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
 	}
 }
 
-func helperNewProducerWithBackingStore(t *testing.T, name string) (*rivulet.Producer, *rivulet.Store, func()) {
+func helperNewProducerWithBackingStore(t *testing.T, name string) (*rivulet.Producer, rivulet.Store, func()) {
 	t.Helper()
-	store := rivulet.NewStore()
+	store := store.NewStore()
 	producer := rivulet.NewProducer(name, rivulet.WithStore(store))
 	wg := sync.WaitGroup{}
 	wg.Add(1)
