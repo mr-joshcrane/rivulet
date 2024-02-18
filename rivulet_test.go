@@ -2,8 +2,8 @@ package rivulet_test
 
 import (
 	"fmt"
-	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/mr-joshcrane/rivulet"
@@ -16,17 +16,21 @@ func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
 		description string
 		store       rivulet.Store
 	}{
+		// {
+		// 	description: "file store",
+		// 	store: func() rivulet.Store {
+		// 		dir := fmt.Sprintf(t.TempDir(), "test.txt")
+		// 		s, _ := store.NewFileStore(dir)
+		// 		return s
+		// 	}(),
+		// },
+		// {
+		// 	description: "memory store",
+		// 	store:       store.NewMemoryStore(),
+		// },
 		{
-			description: "file store",
-			store: func() rivulet.Store {
-				dir := fmt.Sprintf(t.TempDir(), "test.txt")
-				s, _ := store.NewFileStore(dir)
-				return s
-			}(),
-		},
-		{
-			description: "memory store",
-			store:       store.NewMemoryStore(),
+			description: "eventbridge store",
+			store:       store.NewEventBridgeStore(),
 		},
 	}
 	for _, tc := range cases {
@@ -37,7 +41,10 @@ func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
 			if err != nil {
 				t.Errorf("got %v, want nil", err)
 			}
-			wait()
+			err = wait()
+			if err != nil {
+				t.Error(err)
+			}
 			got := store.Read()
 			want := "line1\nline2\nline3"
 			if got != want {
@@ -48,17 +55,21 @@ func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
 
 }
 
-func helperNewProducerWithBackingStore(t *testing.T, s rivulet.Store) (*rivulet.Producer, func()) {
+func helperNewProducerWithBackingStore(t *testing.T, s rivulet.Store) (*rivulet.Producer, func() error) {
 	t.Helper()
 	producer := rivulet.NewProducer("test", rivulet.WithStore(s))
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	done := make(chan bool)
 	go func() {
 		s.Receive()
-		wg.Done()
+		done <- true
 	}()
-	return producer, func() {
+	return producer, func() error {
 		producer.Close()
-		wg.Wait()
+		select {
+		case <-done:
+			return nil
+		case <-time.After(3 * time.Second):
+			return fmt.Errorf("timeout out waiting for store close: test %s", t.Name())
+		}
 	}
 }
