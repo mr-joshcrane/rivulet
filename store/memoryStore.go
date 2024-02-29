@@ -23,8 +23,9 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) Write(data string) {
-	s.buf.WriteString(data)
+func (s *MemoryStore) Write(data string) error {
+	_, err := s.buf.WriteString(data)
+	return err
 }
 
 func (s *MemoryStore) Read() string {

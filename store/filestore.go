@@ -34,14 +34,15 @@ func NewFileStore(filename string) (*FileStore, error) {
 	}, nil
 }
 
-func (s *FileStore) Write(data string) {
+func (s *FileStore) Write(data string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err := s.file.WriteString(data)
 	if err != nil {
-		s.err = err
 		s.file.Close()
+		return err
 	}
+	return nil
 }
 
 func (s *FileStore) Read() string {
