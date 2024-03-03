@@ -25,9 +25,9 @@ type Publisher struct {
 	counter atomic.Int64
 }
 
-type ProducerOptions func(*Publisher)
+type PublisherOptions func(*Publisher)
 
-func WithStore(s Store) ProducerOptions {
+func WithStore(s Store) PublisherOptions {
 	c := make(chan (string))
 	s.Register(c)
 	return func(p *Publisher) {
@@ -35,7 +35,7 @@ func WithStore(s Store) ProducerOptions {
 	}
 }
 
-func NewPublisher(name string, options ...ProducerOptions) *Publisher {
+func NewPublisher(name string, options ...PublisherOptions) *Publisher {
 	p := &Publisher{
 		name: name,
 	}
