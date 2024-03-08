@@ -1,80 +1,133 @@
 package rivulet_test
 
 import (
-	"fmt"
-	"os"
+	"sort"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/mr-joshcrane/coverage"
 	"github.com/mr-joshcrane/rivulet"
-	"github.com/mr-joshcrane/rivulet/store"
 )
 
-func TestMain(m *testing.M) {
-	os.Exit(coverage.ExtendCoverage(m, "rivulet"))
-}
-
-func TestProducer_PublishShouldPropagateDataToStore(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
+func TestPublisher_CanPublish(t *testing.T) {
+	tCases := []struct {
 		description string
-		store       rivulet.Store
+		input       any
+		want        []string
 	}{
 		{
-			description: "file store",
-			store: func() rivulet.Store {
-				dir := fmt.Sprintf(t.TempDir(), "test.txt")
-				s, _ := store.NewFileStore(dir)
-				return s
-			}(),
+			description: "publishes a single line",
+			input:       "a line",
+			want:        []string{"a line"},
 		},
 		{
-			description: "memory store",
-			store:       store.NewMemoryStore(),
+			description: "publishes multiple variadic lines",
+			input:       []string{"line1", "line2", "line3"},
+			want:        []string{"line1", "line2", "line3"},
 		},
-		// {
-		// 	description: "eventbridge store",
-		// 	store:       store.NewEventBridgeStore(),
-		// },
 	}
-	for _, tc := range cases {
+	for _, tc := range tCases {
 		t.Run(tc.description, func(t *testing.T) {
-			store := tc.store
-			publisher, wait := helperNewProducerWithBackingStore(t, store)
-			err := publisher.Publish("line1\n", "line2\n", "line3")
+			t.Parallel()
+			messages := []rivulet.Message{}
+			p := rivulet.NewPublisher(tc.description, rivulet.WithTestTransport(&messages))
+			str, more := func() (string, []string) {
+				switch v := tc.input.(type) {
+				case string:
+					return v, nil
+				case []string:
+					return v[0], v[1:]
+				}
+				t.Fatalf("unexpected type %T", tc.input)
+				return "", nil
+			}()
+
+			err := p.Publish(str, more...)
 			if err != nil {
 				t.Errorf("got %v, want nil", err)
 			}
-			err = wait()
-			if err != nil {
-				t.Error(err)
-			}
-			got := store.Read()
-			want := "line1\nline2\nline3"
-			if got != want {
-				t.Errorf(cmp.Diff(got, want))
+			got := orderedMessages(messages)
+			if !cmp.Equal(got, tc.want) {
+				t.Errorf(cmp.Diff(got, tc.want))
 			}
 		})
 	}
 }
 
-func helperNewProducerWithBackingStore(t *testing.T, s rivulet.Store) (*rivulet.Publisher, func() error) {
-	t.Helper()
-	producer := rivulet.NewPublisher("test", rivulet.WithStore(s))
-	done := make(chan bool)
-	go func() {
-		s.Receive()
-		done <- true
-	}()
-	return producer, func() error {
-		producer.Close()
-		select {
-		case <-done:
-			return nil
-		case <-time.After(5 * time.Second):
-			return fmt.Errorf("timeout out waiting for store close: test %s", t.Name())
+func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
+	t.Parallel()
+	got := []rivulet.Message{}
+	p := rivulet.NewPublisher(t.Name(), rivulet.WithTestTransport(&got))
+	if p.Counter() != 0 {
+		t.Errorf("publisher should have published 0 messages, got %d", p.Counter())
+	}
+	for range 100 {
+		err := p.Publish("a line")
+		if err != nil {
+			t.Errorf("got %v, want nil", err)
 		}
 	}
+	if p.Counter() != 100 {
+		t.Errorf("publisher should have published 100 messages, got %d", p.Counter())
+	}
+	if len(got) != 100 {
+		t.Errorf("transport should have 100 messages, got %d", len(got))
+	}
+}
+
+func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T) {
+	t.Parallel()
+	messages := []rivulet.Message{}
+	p1 := rivulet.NewPublisher("p1", rivulet.WithTestTransport(&messages))
+	p2 := rivulet.NewPublisher("p2", rivulet.WithTestTransport(&messages))
+	err := p1.Publish("p1 line")
+	if err != nil {
+		t.Errorf("got %v, want nil", err)
+	}
+	for range 100 {
+		err := p2.Publish("p2 line")
+		if err != nil {
+			t.Errorf("got %v, want nil", err)
+		}
+		err = p1.Publish("p1 line")
+		if err != nil {
+			t.Errorf("got %v, want nil", err)
+		}
+	}
+	publishers := groupByPublisher(messages)
+	if len(publishers) != 2 {
+		t.Errorf("transport should have 2 publishers, got %d", len(publishers))
+	}
+	var keys []string
+	for k := range publishers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if !cmp.Equal(keys, []string{"p1", "p2"}) {
+		t.Errorf(cmp.Diff(keys, []string{"p1", "p2"}))
+	}
+	if len(publishers["p1"]) != 101 {
+		t.Errorf("transport should have 101 p1 messages, got %d", len(publishers["p1"]))
+	}
+	if len(publishers["p2"]) != 100 {
+		t.Errorf("transport should have 100 p2 messages, got %d", len(publishers["p2"]))
+	}
+}
+
+func orderedMessages(messages []rivulet.Message) []string {
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].Order < messages[j].Order
+	})
+	var result []string
+	for _, m := range messages {
+		result = append(result, m.Content)
+	}
+	return result
+}
+
+func groupByPublisher(messages []rivulet.Message) map[string][]string {
+	result := make(map[string][]string)
+	for _, m := range messages {
+		result[m.Publisher] = append(result[m.Publisher], m.Content)
+	}
+	return result
 }
