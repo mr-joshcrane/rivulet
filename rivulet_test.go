@@ -1,11 +1,16 @@
 package rivulet_test
 
 import (
+	"context"
 	"os"
 	"sort"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
+	"github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/mr-joshcrane/rivulet"
 )
 
@@ -140,8 +145,21 @@ func TestTransport_FileTransport(t *testing.T) {
 
 func TestTransport_EventBridgeTransport(t *testing.T) {
 	t.Parallel()
-
-	t.Skip("not yet implemented")
+	client := &MockEventBridgeClient{}
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client))
+	err := p.Publish("first line", "second line")
+	if err != nil {
+		t.Errorf("got %v, want nil", err)
+	}
+	want := []*eventbridge.PutEventsInput{
+		helperPutEventsInput(`{"Publisher":"p1","Order":1,"Content":"first line"}`),
+		helperPutEventsInput(`{"Publisher":"p1","Order":2,"Content":"second line"}`),
+	}
+	got := client.Input
+	ignore := cmpopts.IgnoreUnexported(types.PutEventsRequestEntry{}, eventbridge.PutEventsInput{})
+	if !cmp.Equal(got, want, ignore) {
+		t.Errorf(cmp.Diff(want, got, ignore))
+	}
 }
 
 func TestTransport_HTTPTransport(t *testing.T) {
@@ -165,4 +183,25 @@ func groupByPublisher(messages []rivulet.Message) map[string][]string {
 		result[m.Publisher] = append(result[m.Publisher], m.Content)
 	}
 	return result
+}
+
+type MockEventBridgeClient struct {
+	Input []*eventbridge.PutEventsInput
+}
+
+func (c *MockEventBridgeClient) PutEvents(ctx context.Context, input *eventbridge.PutEventsInput) (*eventbridge.PutEventsOutput, error) {
+	c.Input = append(c.Input, input)
+	return &eventbridge.PutEventsOutput{}, nil
+}
+
+func helperPutEventsInput(detail string) *eventbridge.PutEventsInput {
+	return &eventbridge.PutEventsInput{
+		Entries: []types.PutEventsRequestEntry{
+			{
+				Detail:     aws.String(detail),
+				DetailType: aws.String("rivulet"),
+				Source:     aws.String("rivulet"),
+			},
+		},
+	}
 }
