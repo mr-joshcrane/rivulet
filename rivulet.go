@@ -11,9 +11,6 @@ type Store interface {
 	Register(chan (string))
 }
 
-type Transport interface {
-	Publish(Message) error
-}
 type Publisher struct {
 	name      string
 	transport Transport
@@ -27,21 +24,6 @@ type Message struct {
 }
 
 type PublisherOptions func(*Publisher)
-
-func WithTestTransport(messages *[]Message) PublisherOptions {
-	return func(p *Publisher) {
-		p.transport = &TestTransport{messages: messages}
-	}
-}
-
-type TestTransport struct {
-	messages *[]Message
-}
-
-func (t *TestTransport) Publish(m Message) error {
-	*t.messages = append(*t.messages, m)
-	return nil
-}
 
 func NewPublisher(name string, options ...PublisherOptions) *Publisher {
 	p := &Publisher{
@@ -72,9 +54,6 @@ func (p *Publisher) Publish(str string, more ...string) error {
 		}
 	}
 	return nil
-}
-
-func (p *Publisher) Close() {
 }
 
 //

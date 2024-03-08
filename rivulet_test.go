@@ -1,6 +1,7 @@
 package rivulet_test
 
 import (
+	"os"
 	"sort"
 	"testing"
 
@@ -29,7 +30,7 @@ func TestPublisher_CanPublish(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 			messages := []rivulet.Message{}
-			p := rivulet.NewPublisher(tc.description, rivulet.WithTestTransport(&messages))
+			p := rivulet.NewPublisher(tc.description, rivulet.WithInMemoryTransport(&messages))
 			str, more := func() (string, []string) {
 				switch v := tc.input.(type) {
 				case string:
@@ -56,7 +57,7 @@ func TestPublisher_CanPublish(t *testing.T) {
 func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 	t.Parallel()
 	got := []rivulet.Message{}
-	p := rivulet.NewPublisher(t.Name(), rivulet.WithTestTransport(&got))
+	p := rivulet.NewPublisher(t.Name(), rivulet.WithInMemoryTransport(&got))
 	if p.Counter() != 0 {
 		t.Errorf("publisher should have published 0 messages, got %d", p.Counter())
 	}
@@ -77,8 +78,8 @@ func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T) {
 	t.Parallel()
 	messages := []rivulet.Message{}
-	p1 := rivulet.NewPublisher("p1", rivulet.WithTestTransport(&messages))
-	p2 := rivulet.NewPublisher("p2", rivulet.WithTestTransport(&messages))
+	p1 := rivulet.NewPublisher("p1", rivulet.WithInMemoryTransport(&messages))
+	p2 := rivulet.NewPublisher("p2", rivulet.WithInMemoryTransport(&messages))
 	err := p1.Publish("p1 line")
 	if err != nil {
 		t.Errorf("got %v, want nil", err)
@@ -111,6 +112,40 @@ func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T)
 	if len(publishers["p2"]) != 100 {
 		t.Errorf("transport should have 100 p2 messages, got %d", len(publishers["p2"]))
 	}
+}
+
+func TestTransport_FileTransport(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "rivulet")
+	if err != nil {
+		t.Fatalf("got %v, want nil", err)
+	}
+	defer f.Close()
+	p := rivulet.NewPublisher(t.Name(), rivulet.WithFileTransport(f))
+	err = p.Publish("a line", "another line")
+	if err != nil {
+		t.Errorf("got %v, want nil", err)
+	}
+	data, err := os.ReadFile(f.Name())
+	if err != nil {
+		t.Fatalf("got %v, want nil", err)
+	}
+	got := string(data)
+	want := `{"Publisher":"TestTransport_FileTransport","Order":1,"Content":"a line"}{"Publisher":"TestTransport_FileTransport","Order":2,"Content":"another line"}`
+	if got != want {
+		t.Errorf(cmp.Diff(got, want))
+	}
+}
+
+func TestTransport_EventBridgeTransport(t *testing.T) {
+	t.Parallel()
+
+	t.Skip("not yet implemented")
+}
+
+func TestTransport_HTTPTransport(t *testing.T) {
+	t.Skip("not yet implemented")
 }
 
 func orderedMessages(messages []rivulet.Message) []string {
