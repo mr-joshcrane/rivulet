@@ -50,7 +50,7 @@ func (t *FileTransport) Publish(m Message) error {
 }
 
 type EventBridgeClient interface {
-	PutEvents(ctx context.Context, events *eventbridge.PutEventsInput) (*eventbridge.PutEventsOutput, error)
+	PutEvents(ctx context.Context, events *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error)
 }
 
 type EventBridgeTransport struct {
@@ -81,10 +81,8 @@ func (t *EventBridgeTransport) Publish(message Message) error {
 	if err != nil {
 		return err
 	}
-	if resp.FailedEntryCount != 0 {
-		if len(resp.Entries) == 1 {
-			return fmt.Errorf("failed to send message: %s", *resp.Entries[0].ErrorMessage)
-		}
+	if resp.FailedEntryCount > 0 {
+		return fmt.Errorf("failed to publish events: %v", resp)
 	}
-	return err
+	return nil
 }

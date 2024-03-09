@@ -143,6 +143,13 @@ func TestTransport_FileTransport(t *testing.T) {
 	}
 }
 
+func TestTransport_EventBridgeTransport_RealClientSatsfiesInterface(t *testing.T) {
+	t.Parallel()
+	cfg := aws.NewConfig()
+	eb := eventbridge.NewFromConfig(*cfg)
+	_ = rivulet.NewPublisher("test", rivulet.WithEventBridgeTransport(eb))
+}
+
 func TestTransport_EventBridgeTransport(t *testing.T) {
 	t.Parallel()
 	client := &MockEventBridgeClient{}
@@ -189,11 +196,10 @@ type MockEventBridgeClient struct {
 	Input []*eventbridge.PutEventsInput
 }
 
-func (c *MockEventBridgeClient) PutEvents(ctx context.Context, input *eventbridge.PutEventsInput) (*eventbridge.PutEventsOutput, error) {
+func (c *MockEventBridgeClient) PutEvents(ctx context.Context, input *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error) {
 	c.Input = append(c.Input, input)
 	return &eventbridge.PutEventsOutput{}, nil
 }
-
 func helperPutEventsInput(detail string) *eventbridge.PutEventsInput {
 	return &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{
