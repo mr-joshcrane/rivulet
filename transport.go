@@ -17,15 +17,15 @@ type Transport interface {
 
 func WithInMemoryTransport(messages *[]Message) PublisherOptions {
 	return func(p *Publisher) {
-		p.transport = &TestTransport{messages: messages}
+		p.transport = &InMemoryTransport{messages: messages}
 	}
 }
 
-type TestTransport struct {
+type InMemoryTransport struct {
 	messages *[]Message
 }
 
-func (t *TestTransport) Publish(m Message) error {
+func (t *InMemoryTransport) Publish(m Message) error {
 	*t.messages = append(*t.messages, m)
 	return nil
 }
@@ -48,6 +48,11 @@ func (t *FileTransport) Publish(m Message) error {
 	_, err = t.f.Write(data)
 	return err
 }
+func WithEventBridgeTransport(eventBridge EventBridgeClient) PublisherOptions {
+	return func(p *Publisher) {
+		p.transport = &EventBridgeTransport{EventBridge: eventBridge}
+	}
+}
 
 type EventBridgeClient interface {
 	PutEvents(ctx context.Context, events *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error)
@@ -55,12 +60,6 @@ type EventBridgeClient interface {
 
 type EventBridgeTransport struct {
 	EventBridge EventBridgeClient
-}
-
-func WithEventBridgeTransport(eventBridge EventBridgeClient) PublisherOptions {
-	return func(p *Publisher) {
-		p.transport = &EventBridgeTransport{EventBridge: eventBridge}
-	}
 }
 
 func (t *EventBridgeTransport) Publish(message Message) error {
