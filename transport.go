@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
@@ -15,44 +14,40 @@ type Transport interface {
 	Publish(Message) error
 }
 
-func WithInMemoryTransport(messages *[]Message) PublisherOptions {
-	return func(p *Publisher) {
-		p.transport = &InMemoryTransport{messages: messages}
-	}
-}
+// InMemoryTransport is a Transport that deals with messages within process
 
 type InMemoryTransport struct {
 	messages *[]Message
 }
 
+func WithInMemoryTransport(messages *[]Message) PublisherOptions {
+	return func(p *Publisher) {
+		p.transport = &InMemoryTransport{messages: messages}
+	}
+}
 func (t *InMemoryTransport) Publish(m Message) error {
 	*t.messages = append(*t.messages, m)
 	return nil
 }
 
-func WithFileTransport(file *os.File) PublisherOptions {
+// NetworkTransport is a Transport that ships messages over the NetworkTransport
+
+type NetworkTransport struct {
+	endpoint string
+	port     int
+}
+
+func WithNetworkTransport(endpoint string, port int) PublisherOptions {
 	return func(p *Publisher) {
-		p.transport = &FileTransport{f: file}
+		p.transport = &NetworkTransport{endpoint: endpoint, port: port}
 	}
 }
 
-type FileTransport struct {
-	f *os.File
+func (t *NetworkTransport) Publish(m Message) error {
+	return nil
 }
 
-func (t *FileTransport) Publish(m Message) error {
-	data, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	_, err = t.f.Write(data)
-	return err
-}
-func WithEventBridgeTransport(eventBridge EventBridgeClient) PublisherOptions {
-	return func(p *Publisher) {
-		p.transport = &EventBridgeTransport{EventBridge: eventBridge}
-	}
-}
+// EventBridgeTransport is a Transport that ships messages via AWS EventBridge
 
 type EventBridgeClient interface {
 	PutEvents(ctx context.Context, events *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error)
@@ -62,6 +57,11 @@ type EventBridgeTransport struct {
 	EventBridge EventBridgeClient
 }
 
+func WithEventBridgeTransport(eventBridge EventBridgeClient) PublisherOptions {
+	return func(p *Publisher) {
+		p.transport = &EventBridgeTransport{EventBridge: eventBridge}
+	}
+}
 func (t *EventBridgeTransport) Publish(message Message) error {
 	detail, err := json.Marshal(message)
 	if err != nil {

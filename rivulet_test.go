@@ -2,7 +2,6 @@ package rivulet_test
 
 import (
 	"context"
-	"os"
 	"sort"
 	"testing"
 
@@ -119,29 +118,20 @@ func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T)
 	}
 }
 
-func TestTransport_FileTransport(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	f, err := os.CreateTemp(dir, "rivulet")
-	if err != nil {
-		t.Fatalf("got %v, want nil", err)
-	}
-	defer f.Close()
-	p := rivulet.NewPublisher(t.Name(), rivulet.WithFileTransport(f))
-	err = p.Publish("a line", "another line")
-	if err != nil {
-		t.Errorf("got %v, want nil", err)
-	}
-	data, err := os.ReadFile(f.Name())
-	if err != nil {
-		t.Fatalf("got %v, want nil", err)
-	}
-	got := string(data)
-	want := `{"Publisher":"TestTransport_FileTransport","Order":1,"Content":"a line"}{"Publisher":"TestTransport_FileTransport","Order":2,"Content":"another line"}`
-	if got != want {
-		t.Errorf(cmp.Diff(got, want))
-	}
-}
+//
+// func TestTransport_NetworkTransport(t *testing.T) {
+// 	t.Parallel()
+// 	buf := new(bytes.Buffer)
+// 	server := NewServer(func(w http.ResponseWriter, r *http.Request) {
+// 		buf.ReadFrom(r.Body)
+// 	})
+// 	defer server.Close()
+//
+// 	addr := server.Listener.Addr().String()
+// 	addr := server.Listener.Addr().Port
+//
+// 	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(server.URL))
+// }
 
 func TestTransport_EventBridgeTransport_RealClientSatsfiesInterface(t *testing.T) {
 	t.Parallel()
