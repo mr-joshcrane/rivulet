@@ -1,9 +1,11 @@
 package rivulet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
@@ -17,33 +19,59 @@ type Transport interface {
 // InMemoryTransport is a Transport that deals with messages within process
 
 type InMemoryTransport struct {
-	messages *[]Message
+	messages chan Message
 }
 
-func WithInMemoryTransport(messages *[]Message) PublisherOptions {
+func WithTransport(t Transport) PublisherOptions {
 	return func(p *Publisher) {
-		p.transport = &InMemoryTransport{messages: messages}
+		p.transport = t
 	}
 }
+
+func NewMemoryTransport() *InMemoryTransport {
+	return &InMemoryTransport{messages: make(chan Message, 1_000)}
+}
+
 func (t *InMemoryTransport) Publish(m Message) error {
-	*t.messages = append(*t.messages, m)
+	t.messages <- m
 	return nil
+}
+
+func (t *InMemoryTransport) GetReceiver() InMemoryReceiver {
+	return InMemoryReceiver{messages: t.messages}
 }
 
 // NetworkTransport is a Transport that ships messages over the NetworkTransport
 
 type NetworkTransport struct {
 	endpoint string
-	port     int
 }
 
-func WithNetworkTransport(endpoint string, port int) PublisherOptions {
+func WithNetworkTransport(endpoint string) PublisherOptions {
+	endpoint = fmt.Sprintf("http://%s", endpoint)
 	return func(p *Publisher) {
-		p.transport = &NetworkTransport{endpoint: endpoint, port: port}
+		p.transport = &NetworkTransport{endpoint: endpoint}
 	}
 }
 
 func (t *NetworkTransport) Publish(m Message) error {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	buf := bytes.NewBuffer(data)
+	req, err := http.NewRequest("POST", t.endpoint, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
 	return nil
 }
 

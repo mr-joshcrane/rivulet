@@ -4,13 +4,6 @@ import (
 	"sync/atomic"
 )
 
-type Store interface {
-	Receive()
-	Write(data string) error
-	Read() string
-	Register(chan (string))
-}
-
 type Publisher struct {
 	name      string
 	transport Transport

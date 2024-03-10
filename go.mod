@@ -1,6 +1,6 @@
 module github.com/mr-joshcrane/rivulet
 
-go 1.22.1
+go 1.21.7
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.25.3

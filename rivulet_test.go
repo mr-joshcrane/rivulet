@@ -2,8 +2,12 @@ package rivulet_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
@@ -32,9 +36,9 @@ func TestPublisher_CanPublish(t *testing.T) {
 	}
 	for _, tc := range tCases {
 		t.Run(tc.description, func(t *testing.T) {
-			t.Parallel()
-			messages := []rivulet.Message{}
-			p := rivulet.NewPublisher(tc.description, rivulet.WithInMemoryTransport(&messages))
+			transport := rivulet.NewMemoryTransport()
+			receiver := transport.GetReceiver()
+			p := rivulet.NewPublisher(tc.description, rivulet.WithTransport(transport))
 			str, more := func() (string, []string) {
 				switch v := tc.input.(type) {
 				case string:
@@ -45,11 +49,13 @@ func TestPublisher_CanPublish(t *testing.T) {
 				t.Fatalf("unexpected type %T", tc.input)
 				return "", nil
 			}()
-
 			err := p.Publish(str, more...)
 			if err != nil {
 				t.Errorf("got %v, want nil", err)
 			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
+			defer cancel()
+			messages := receiver.Receive(ctx)
 			got := orderedMessages(messages)
 			if !cmp.Equal(got, tc.want) {
 				t.Errorf(cmp.Diff(got, tc.want))
@@ -60,17 +66,21 @@ func TestPublisher_CanPublish(t *testing.T) {
 
 func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 	t.Parallel()
-	got := []rivulet.Message{}
-	p := rivulet.NewPublisher(t.Name(), rivulet.WithInMemoryTransport(&got))
+	transport := rivulet.NewMemoryTransport()
+	reciever := transport.GetReceiver()
+	p := rivulet.NewPublisher(t.Name(), rivulet.WithTransport(transport))
 	if p.Counter() != 0 {
 		t.Errorf("publisher should have published 0 messages, got %d", p.Counter())
 	}
-	for range 100 {
+	for i := 0; i < 100; i++ {
 		err := p.Publish("a line")
 		if err != nil {
 			t.Errorf("got %v, want nil", err)
 		}
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
+	defer cancel()
+	got := reciever.Receive(ctx)
 	if p.Counter() != 100 {
 		t.Errorf("publisher should have published 100 messages, got %d", p.Counter())
 	}
@@ -81,14 +91,15 @@ func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 
 func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T) {
 	t.Parallel()
-	messages := []rivulet.Message{}
-	p1 := rivulet.NewPublisher("p1", rivulet.WithInMemoryTransport(&messages))
-	p2 := rivulet.NewPublisher("p2", rivulet.WithInMemoryTransport(&messages))
+	transport := rivulet.NewMemoryTransport()
+	receiver := transport.GetReceiver()
+	p1 := rivulet.NewPublisher("p1", rivulet.WithTransport(transport))
+	p2 := rivulet.NewPublisher("p2", rivulet.WithTransport(transport))
 	err := p1.Publish("p1 line")
 	if err != nil {
 		t.Errorf("got %v, want nil", err)
 	}
-	for range 100 {
+	for i := 0; i < 100; i++ {
 		err := p2.Publish("p2 line")
 		if err != nil {
 			t.Errorf("got %v, want nil", err)
@@ -98,6 +109,9 @@ func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T)
 			t.Errorf("got %v, want nil", err)
 		}
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
+	defer cancel()
+	messages := receiver.Receive(ctx)
 	publishers := groupByPublisher(messages)
 	if len(publishers) != 2 {
 		t.Errorf("transport should have 2 publishers, got %d", len(publishers))
@@ -118,20 +132,35 @@ func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T)
 	}
 }
 
-//
-// func TestTransport_NetworkTransport(t *testing.T) {
-// 	t.Parallel()
-// 	buf := new(bytes.Buffer)
-// 	server := NewServer(func(w http.ResponseWriter, r *http.Request) {
-// 		buf.ReadFrom(r.Body)
-// 	})
-// 	defer server.Close()
-//
-// 	addr := server.Listener.Addr().String()
-// 	addr := server.Listener.Addr().Port
-//
-// 	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(server.URL))
-// }
+func TestTransport_NetworkTransport(t *testing.T) {
+	t.Parallel()
+	got := []rivulet.Message{}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var message rivulet.Message
+		err := json.NewDecoder(r.Body).Decode(&message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, message)
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := server.Listener.Addr().String()
+
+	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(addr))
+	err := p.Publish("first line", "second line")
+	if err != nil {
+		t.Fatalf("got %v, want nil", err)
+	}
+	want := []rivulet.Message{
+		{Publisher: "test", Order: 1, Content: "first line"},
+		{Publisher: "test", Order: 2, Content: "second line"},
+	}
+	if !cmp.Equal(want, got) {
+		t.Fatalf(cmp.Diff(want, got))
+	}
+}
 
 func TestTransport_EventBridgeTransport_RealClientSatsfiesInterface(t *testing.T) {
 	t.Parallel()
