@@ -83,13 +83,20 @@ type EventBridgeClient interface {
 
 type EventBridgeTransport struct {
 	EventBridge EventBridgeClient
+	detailType  string
+	source      string
 }
 
-func WithEventBridgeTransport(eventBridge EventBridgeClient) PublisherOptions {
+func WithEventBridgeTransport(eventBridge EventBridgeClient, detailType, source string) PublisherOptions {
 	return func(p *Publisher) {
-		p.transport = &EventBridgeTransport{EventBridge: eventBridge}
+		p.transport = &EventBridgeTransport{
+			EventBridge: eventBridge,
+			detailType:  detailType,
+			source:      source,
+		}
 	}
 }
+
 func (t *EventBridgeTransport) Publish(message Message) error {
 	detail, err := json.Marshal(message)
 	if err != nil {
@@ -99,8 +106,8 @@ func (t *EventBridgeTransport) Publish(message Message) error {
 		Entries: []types.PutEventsRequestEntry{
 			{
 				Detail:     aws.String(string(detail)),
-				DetailType: aws.String("rivulet"),
-				Source:     aws.String("rivulet"),
+				DetailType: aws.String(t.detailType),
+				Source:     aws.String(t.source),
 			},
 		},
 	}
