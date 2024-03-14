@@ -101,6 +101,13 @@ var DefaultTransform = func(m Message) (string, error) {
 	return string(data), nil
 }
 
+func WithEventBridgeTransportOptions(detailType, source, eventBusName string, transform Transform) EventBridgeTransportOptions {
+	return func(t *EventBridgeTransport) {
+		t.detailType = detailType
+		t.source = source
+		t.eventBusName = eventBusName
+	}
+}
 
 
 func WithEventBridgeTransport(eventBridge EventBridgeClient, opts ...EventBridgeTransportOptions) PublisherOptions {
