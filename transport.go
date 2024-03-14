@@ -81,38 +81,55 @@ type EventBridgeClient interface {
 	PutEvents(ctx context.Context, events *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error)
 }
 
+type Transform func(Message) (string, error)
+
 type EventBridgeTransport struct {
-	EventBridge EventBridgeClient
-	detailType  string
-	source      string
+	EventBridge  EventBridgeClient
+	detailType   string
+	source       string
 	eventBusName string
+	transform    Transform
 }
 
-func WithEventBridgeTransport(eventBridge EventBridgeClient, detailType, source, eventBusName string) PublisherOptions {
+type EventBridgeTransportOptions func(*EventBridgeTransport)
+
+var DefaultTransform = func(m Message) (string, error) {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+
+
+func WithEventBridgeTransport(eventBridge EventBridgeClient, opts ...EventBridgeTransportOptions) PublisherOptions {
+	transport := &EventBridgeTransport{
+		EventBridge:  eventBridge,
+		detailType:   "rivulet",
+		source:       "rivulet",
+		eventBusName: "default",
+		transform:    DefaultTransform,
+	}
+	for _, opt := range opts {
+		opt(transport)
+	}
 	return func(p *Publisher) {
-		p.transport = &EventBridgeTransport{
-			EventBridge: eventBridge,
-			detailType:  detailType,
-			source:      source,
-			eventBusName: eventBusName,
-		}
+		p.transport = transport
 	}
 }
 
 func (t *EventBridgeTransport) Publish(message Message) error {
-	detail, err := json.Marshal(message)
+	detail, err := t.transform(message)
 	if err != nil {
 		return err
-	}
-	if t.eventBusName == "" {
-		t.eventBusName = "default"
 	}
 	putEventsInput := &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{
 			{
-				Detail:     aws.String(string(detail)),
-				DetailType: aws.String(t.detailType),
-				Source:     aws.String(t.source),
+				Detail:       aws.String(detail),
+				DetailType:   aws.String(t.detailType),
+				Source:       aws.String(t.source),
 				EventBusName: aws.String(t.eventBusName),
 			},
 		},
