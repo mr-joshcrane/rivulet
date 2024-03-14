@@ -166,13 +166,13 @@ func TestTransport_EventBridgeTransport_RealClientSatsfiesInterface(t *testing.T
 	t.Parallel()
 	cfg := aws.NewConfig()
 	eb := eventbridge.NewFromConfig(*cfg)
-	_ = rivulet.NewPublisher("test", rivulet.WithEventBridgeTransport(eb, "rivulet", "rivulet"))
+	_ = rivulet.NewPublisher("test", rivulet.WithEventBridgeTransport(eb, "rivulet", "rivulet", "default"))
 }
 
 func TestTransport_EventBridgeTransport(t *testing.T) {
 	t.Parallel()
 	client := &MockEventBridgeClient{}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, "rivulet", "rivulet"))
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, "rivulet", "rivulet", "default"))
 	err := p.Publish("first line", "second line")
 	if err != nil {
 		t.Errorf("got %v, want nil", err)
@@ -226,6 +226,7 @@ func helperPutEventsInput(detail string) *eventbridge.PutEventsInput {
 				Detail:     aws.String(detail),
 				DetailType: aws.String("rivulet"),
 				Source:     aws.String("rivulet"),
+				EventBusName: aws.String("default"),
 			},
 		},
 	}

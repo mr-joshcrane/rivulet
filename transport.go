@@ -85,14 +85,16 @@ type EventBridgeTransport struct {
 	EventBridge EventBridgeClient
 	detailType  string
 	source      string
+	eventBusName string
 }
 
-func WithEventBridgeTransport(eventBridge EventBridgeClient, detailType, source string) PublisherOptions {
+func WithEventBridgeTransport(eventBridge EventBridgeClient, detailType, source, eventBusName string) PublisherOptions {
 	return func(p *Publisher) {
 		p.transport = &EventBridgeTransport{
 			EventBridge: eventBridge,
 			detailType:  detailType,
 			source:      source,
+			eventBusName: eventBusName,
 		}
 	}
 }
@@ -102,12 +104,16 @@ func (t *EventBridgeTransport) Publish(message Message) error {
 	if err != nil {
 		return err
 	}
+	if t.eventBusName == "" {
+		t.eventBusName = "default"
+	}
 	putEventsInput := &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{
 			{
 				Detail:     aws.String(string(detail)),
 				DetailType: aws.String(t.detailType),
 				Source:     aws.String(t.source),
+				EventBusName: aws.String(t.eventBusName),
 			},
 		},
 	}
