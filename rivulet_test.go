@@ -3,6 +3,7 @@ package rivulet_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -176,6 +177,93 @@ func TestEventBridgeTransport_DetectsFailedPublishAttempts(t *testing.T) {
 
 }
 
+func TestEventBridgeTransport_CanSetUpWithDifferentOptions(t *testing.T) {
+	t.Parallel()
+	client := &DummyEventBridge{}
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(
+		client,
+		rivulet.WithDetailType("test"),
+		rivulet.WithSource("test"),
+		rivulet.WithEventBusName("test"),
+	),
+	)
+	err := p.Publish("a line")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := client.Input
+	if len(got) != 1 {
+		t.Fatalf("expected 1 input, got %d", len(got))
+	}
+	if *got[0].Entries[0].DetailType != "test" {
+		t.Errorf("expected %q, got %q", "test", *got[0].Entries[0].DetailType)
+	}
+	if *got[0].Entries[0].Source != "test" {
+		t.Errorf("expected %q, got %q", "test", *got[0].Entries[0].Source)
+	}
+	if *got[0].Entries[0].EventBusName != "test" {
+		t.Errorf("expected %q, got %q", "test", *got[0].Entries[0].EventBusName)
+	}
+}
+
+func TestEventBridgeTransport_CanTakeUserProvidedMessageTransform(t *testing.T) {
+	t.Parallel()
+	client := &DummyEventBridge{}
+	transform := func(m rivulet.Message) (string, error) {
+		transformed := struct {
+			Original                     rivulet.Message
+			SomeArbitraryAdditionalField string
+		}{
+			Original:                     m,
+			SomeArbitraryAdditionalField: "arbitrary",
+		}
+		data, err := json.Marshal(transformed)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
+	err := p.Publish("a line")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := client.Input
+	if len(got) != 1 {
+		t.Fatalf("expected 1 input, got %d", len(got))
+	}
+	want := `{"Original":{"Publisher":"p1","Order":1,"Content":"a line"},"SomeArbitraryAdditionalField":"arbitrary"}`
+	if *got[0].Entries[0].Detail != want {
+		t.Errorf("expected %q, got %q", want, *got[0].Entries[0].Detail)
+	}
+}
+
+func TestEventBridgeTransport_AWellDefinedUserTransformErroringIsHandledByPublish(t *testing.T) {
+	t.Parallel()
+	client := &DummyEventBridge{}
+	transform := func(rivulet.Message) (string, error) {
+		return "", fmt.Errorf("a user transform that correctly handles its errors")
+	}
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
+	err := p.Publish("a line")
+	if err == nil {
+		t.Errorf("got nil, want error")
+	}
+}
+
+func TestEventBridgeTransport_APoorlyDefinedUserTransformErroringIsHandledByPublish(t *testing.T) {
+	t.Parallel()
+	client := &DummyEventBridge{}
+	transform := func(rivulet.Message) (string, error) {
+		return "", nil
+	}
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
+	err := p.Publish("a line")
+	if err == nil {
+		t.Errorf("got nil, want error")
+	}
+}
+
 func groupByPublisher(messages []rivulet.Message) map[string][]string {
 	result := make(map[string][]string)
 	for _, m := range messages {
@@ -211,9 +299,9 @@ func helperPutEventsInput(detail string) *eventbridge.PutEventsInput {
 	return &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{
 			{
-				Detail:     aws.String(detail),
-				DetailType: aws.String("rivulet"),
-				Source:     aws.String("rivulet"),
+				Detail:       aws.String(detail),
+				DetailType:   aws.String("rivulet"),
+				Source:       aws.String("rivulet"),
 				EventBusName: aws.String("default"),
 			},
 		},

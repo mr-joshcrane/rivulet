@@ -100,14 +100,29 @@ var DefaultTransform = func(m Message) (string, error) {
 	return string(data), nil
 }
 
-func WithEventBridgeTransportOptions(detailType, source, eventBusName string, transform Transform) EventBridgeTransportOptions {
+func WithDetailType(detailType string) EventBridgeTransportOptions {
 	return func(t *EventBridgeTransport) {
 		t.detailType = detailType
+	}
+}
+
+func WithSource(source string) EventBridgeTransportOptions {
+	return func(t *EventBridgeTransport) {
 		t.source = source
+	}
+}
+
+func WithEventBusName(eventBusName string) EventBridgeTransportOptions {
+	return func(t *EventBridgeTransport) {
 		t.eventBusName = eventBusName
 	}
 }
 
+func WithTransform(transform Transform) EventBridgeTransportOptions {
+	return func(t *EventBridgeTransport) {
+		t.transform = transform
+	}
+}
 
 func WithEventBridgeTransport(eventBridge EventBridgeClient, opts ...EventBridgeTransportOptions) PublisherOptions {
 	transport := &EventBridgeTransport{
@@ -128,7 +143,10 @@ func WithEventBridgeTransport(eventBridge EventBridgeClient, opts ...EventBridge
 func (t *EventBridgeTransport) Publish(message Message) error {
 	detail, err := t.transform(message)
 	if err != nil {
-		panic(err)
+		return err
+	}
+	if detail == "" {
+		return fmt.Errorf("message transform returned an empty string")
 	}
 	putEventsInput := &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{
