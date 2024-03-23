@@ -17,53 +17,6 @@ import (
 	"github.com/mr-joshcrane/rivulet"
 )
 
-func TestPublisher_CanPublish(t *testing.T) {
-	tCases := []struct {
-		description string
-		input       any
-		want        []string
-	}{
-		{
-			description: "publishes a single line",
-			input:       "a line",
-			want:        []string{"a line"},
-		},
-		{
-			description: "publishes multiple variadic lines",
-			input:       []string{"line1", "line2", "line3"},
-			want:        []string{"line1", "line2", "line3"},
-		},
-	}
-	for _, tc := range tCases {
-		t.Run(tc.description, func(t *testing.T) {
-			transport := rivulet.NewMemoryTransport()
-			receiver := transport.GetReceiver()
-			p := rivulet.NewPublisher(tc.description, rivulet.WithTransport(transport))
-			str, more := func() (string, []string) {
-				switch v := tc.input.(type) {
-				case string:
-					return v, nil
-				case []string:
-					return v[0], v[1:]
-				}
-				t.Fatalf("unexpected type %T", tc.input)
-				return "", nil
-			}()
-			err := p.Publish(str, more...)
-			if err != nil {
-				t.Errorf("got %v, want nil", err)
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
-			defer cancel()
-			messages := receiver.Receive(ctx)
-			got := orderedMessages(messages)
-			if !cmp.Equal(got, tc.want) {
-				t.Errorf(cmp.Diff(got, tc.want))
-			}
-		})
-	}
-}
-
 func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 	t.Parallel()
 	transport := rivulet.NewMemoryTransport()
@@ -146,12 +99,14 @@ func TestTransport_NetworkTransport(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	addr := server.Listener.Addr().String()
-
-	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(addr))
-	err := p.Publish("first line", "second line")
+	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(server.URL))
+	err := p.Publish("first line")
 	if err != nil {
-		t.Fatalf("got %v, want nil", err)
+		t.Fatal(err)
+	}
+	err = p.Publish("second line")
+	if err != nil {
+		t.Fatal(err)
 	}
 	want := []rivulet.Message{
 		{Publisher: "test", Order: 1, Content: "first line"},
@@ -171,11 +126,13 @@ func TestTransport_EventBridgeTransport_RealClientSatsfiesInterface(t *testing.T
 
 func TestTransport_EventBridgeTransport(t *testing.T) {
 	t.Parallel()
-	client := &MockEventBridgeClient{}
+	client := &DummyEventBridge{}
 	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client))
-	err := p.Publish("first line", "second line")
-	if err != nil {
-		t.Errorf("got %v, want nil", err)
+	for _, line := range []string{"first line", "second line"} {
+		err := p.Publish(line)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	want := []*eventbridge.PutEventsInput{
 		helperPutEventsInput(`{"Publisher":"p1","Order":1,"Content":"first line"}`),
@@ -188,19 +145,35 @@ func TestTransport_EventBridgeTransport(t *testing.T) {
 	}
 }
 
-func TestTransport_HTTPTransport(t *testing.T) {
-	t.Skip("not yet implemented")
+func TestNetworkTransport_FailsGracefullyWithBadURL(t *testing.T) {
+	t.Parallel()
+	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport("httttp://badurl"))
+	err := p.Publish("a line")
+	if err == nil {
+		t.Errorf("got nil, want error")
+	}
 }
 
-func orderedMessages(messages []rivulet.Message) []string {
-	sort.Slice(messages, func(i, j int) bool {
-		return messages[i].Order < messages[j].Order
-	})
-	var result []string
-	for _, m := range messages {
-		result = append(result, m.Content)
+func TestNetworkTransport_FailsGracefullyWithBadHTTPResponseCode(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(nil)
+	defer server.Close()
+	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(server.URL))
+	err := p.Publish("a line")
+	if err == nil {
+		t.Errorf("got nil, want error")
 	}
-	return result
+}
+
+func TestEventBridgeTransport_DetectsFailedPublishAttempts(t *testing.T) {
+	t.Parallel()
+	client := &BrokenEventBridge{}
+	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client))
+	err := p.Publish("a line")
+	if err == nil {
+		t.Errorf("got nil, want error")
+	}
+
 }
 
 func groupByPublisher(messages []rivulet.Message) map[string][]string {
@@ -211,14 +184,29 @@ func groupByPublisher(messages []rivulet.Message) map[string][]string {
 	return result
 }
 
-type MockEventBridgeClient struct {
+type DummyEventBridge struct {
 	Input []*eventbridge.PutEventsInput
 }
 
-func (c *MockEventBridgeClient) PutEvents(ctx context.Context, input *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error) {
+func (c *DummyEventBridge) PutEvents(ctx context.Context, input *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error) {
 	c.Input = append(c.Input, input)
 	return &eventbridge.PutEventsOutput{}, nil
 }
+
+type BrokenEventBridge struct{}
+
+func (b *BrokenEventBridge) PutEvents(ctx context.Context, input *eventbridge.PutEventsInput, opts ...func(*eventbridge.Options)) (*eventbridge.PutEventsOutput, error) {
+	return &eventbridge.PutEventsOutput{
+		FailedEntryCount: 1,
+		Entries: []types.PutEventsResultEntry{
+			{
+				ErrorCode:    aws.String("400"),
+				ErrorMessage: aws.String("ThrottlingException"),
+			},
+		},
+	}, nil
+}
+
 func helperPutEventsInput(detail string) *eventbridge.PutEventsInput {
 	return &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{

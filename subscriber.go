@@ -32,8 +32,6 @@ func (r *InMemoryReceiver) Receive(ctx context.Context) []Message {
 			messages = append(messages, msg)
 		}
 	}
-	return messages
-
 }
 
 func (s *Subscriber) Receive(ctx context.Context) error {

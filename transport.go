@@ -48,7 +48,6 @@ type NetworkTransport struct {
 }
 
 func WithNetworkTransport(endpoint string) PublisherOptions {
-	endpoint = fmt.Sprintf("http://%s", endpoint)
 	return func(p *Publisher) {
 		p.transport = &NetworkTransport{endpoint: endpoint}
 	}
@@ -57,12 +56,12 @@ func WithNetworkTransport(endpoint string) PublisherOptions {
 func (t *NetworkTransport) Publish(m Message) error {
 	data, err := json.Marshal(m)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	buf := bytes.NewBuffer(data)
 	req, err := http.NewRequest("POST", t.endpoint, buf)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
@@ -129,7 +128,7 @@ func WithEventBridgeTransport(eventBridge EventBridgeClient, opts ...EventBridge
 func (t *EventBridgeTransport) Publish(message Message) error {
 	detail, err := t.transform(message)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	putEventsInput := &eventbridge.PutEventsInput{
 		Entries: []types.PutEventsRequestEntry{
@@ -146,7 +145,11 @@ func (t *EventBridgeTransport) Publish(message Message) error {
 		return err
 	}
 	if resp.FailedEntryCount > 0 {
-		return fmt.Errorf("failed to publish events: %v", resp)
+		if len(resp.Entries) > 0 {
+			return fmt.Errorf("failed to publish events:%s, %s",
+				*(resp.Entries[0].ErrorCode),
+				*(resp.Entries[0].ErrorMessage))
+		}
 	}
 	return nil
 }

@@ -32,19 +32,12 @@ func (p *Publisher) Counter() int64 {
 	return p.counter.Load()
 }
 
-func (p *Publisher) Publish(str string, more ...string) error {
-	s := append([]string{str}, more...)
-	for _, data := range s {
-		p.counter.Add(1)
-		m := Message{
-			Publisher: p.name,
-			Order:     int(p.counter.Load()),
-			Content:   data,
-		}
-		err := p.transport.Publish(m)
-		if err != nil {
-			return err
-		}
+func (p *Publisher) Publish(str string) error {
+	p.counter.Add(1)
+	m := Message{
+		Publisher: p.name,
+		Order:     int(p.counter.Load()),
+		Content:   str,
 	}
-	return nil
+	return p.transport.Publish(m)
 }
