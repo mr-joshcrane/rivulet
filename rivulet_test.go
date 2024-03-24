@@ -251,7 +251,7 @@ func TestEventBridgeTransport_AWellDefinedUserTransformErroringIsHandledByPublis
 	}
 }
 
-func TestEventBridgeTransport_APoorlyDefinedUserTransformErroringIsHandledByPublish(t *testing.T) {
+func TestEventBridgeTransport_APoorlyDefinedUserTransformIsCaughtByPublish(t *testing.T) {
 	t.Parallel()
 	client := &DummyEventBridge{}
 	transform := func(rivulet.Message) (string, error) {
