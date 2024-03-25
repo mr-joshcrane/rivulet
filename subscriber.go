@@ -28,7 +28,6 @@ func (r *InMemoryReceiver) Receive(ctx context.Context) []Message {
 			return messages
 		case msg, ok := <-r.messages:
 			if !ok {
-				fmt.Println(msg, ok)
 				return messages
 			}
 			messages = append(messages, msg)
