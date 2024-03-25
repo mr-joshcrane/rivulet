@@ -2,6 +2,7 @@ package rivulet
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/mr-joshcrane/rivulet/store"
 )
@@ -27,6 +28,7 @@ func (r *InMemoryReceiver) Receive(ctx context.Context) []Message {
 			return messages
 		case msg, ok := <-r.messages:
 			if !ok {
+				fmt.Println(msg, ok)
 				return messages
 			}
 			messages = append(messages, msg)
@@ -36,5 +38,31 @@ func (r *InMemoryReceiver) Receive(ctx context.Context) []Message {
 
 func (s *Subscriber) Receive(ctx context.Context) error {
 	messages := s.receiver.Receive(ctx)
-	return s.store.Save(messages)
+	var convertedMessages []store.Message
+	for _, msg := range messages {
+		convertedMessages = append(convertedMessages, store.Message{
+			Publisher: msg.Publisher,
+			Order:     msg.Order,
+			Content:   msg.Content,
+		})
+	}
+	err := s.store.Save(convertedMessages)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Subscriber) Messages() ([]Message, error) {
+	messages := s.store.Messages()
+	fmt.Println(messages)
+	var m []Message
+	for _, msg := range messages {
+		m = append(m, Message{
+			Publisher: msg.Publisher,
+			Order:     msg.Order,
+			Content:   msg.Content,
+		})
+	}
+	return m, nil
 }

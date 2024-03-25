@@ -18,11 +18,47 @@ import (
 	"github.com/mr-joshcrane/rivulet"
 )
 
+func TestPublisher_NewPublisherByDefaultCreatesAMemoryPublisherAndSubscriber(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*1000)
+	defer cancel()
+	p, s := rivulet.NewMemoryPublisher(t.Name())
+	go func() {
+		err := s.Receive(ctx)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+	err := p.Publish("a line")
+	if err != nil {
+		t.Fatalf("got %v, want nil", err)
+	}
+	time.Sleep(time.Millisecond * 2000)
+	messages, err := s.Messages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("wanted 1 message, got %d", len(messages))
+	}
+	message := messages[0]
+	if message.Content != "a line" {
+		t.Errorf("wanted %q, got %q", "a line", message.Content)
+	}
+	if message.Publisher != t.Name() {
+		t.Errorf("wanted %q, got %q", t.Name(), message.Publisher)
+	}
+	if message.Order != 1 {
+		t.Errorf("wanted 1, got %d", message.Order)
+	}
+
+}
+
 func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 	t.Parallel()
 	transport := rivulet.NewMemoryTransport()
 	reciever := transport.GetReceiver()
-	p := rivulet.NewPublisher(t.Name(), rivulet.WithTransport(transport))
+	p, _ := rivulet.NewMemoryPublisher(t.Name(), rivulet.WithTransport(transport))
 	if p.Counter() != 0 {
 		t.Errorf("publisher should have published 0 messages, got %d", p.Counter())
 	}
@@ -47,8 +83,8 @@ func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T)
 	t.Parallel()
 	transport := rivulet.NewMemoryTransport()
 	receiver := transport.GetReceiver()
-	p1 := rivulet.NewPublisher("p1", rivulet.WithTransport(transport))
-	p2 := rivulet.NewPublisher("p2", rivulet.WithTransport(transport))
+	p1, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithTransport(transport))
+	p2, _ := rivulet.NewMemoryPublisher("p2", rivulet.WithTransport(transport))
 	err := p1.Publish("p1 line")
 	if err != nil {
 		t.Errorf("got %v, want nil", err)
@@ -100,7 +136,7 @@ func TestTransport_NetworkTransport(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(server.URL))
+	p, _ := rivulet.NewMemoryPublisher("test", rivulet.WithNetworkTransport(server.URL))
 	err := p.Publish("first line")
 	if err != nil {
 		t.Fatal(err)
@@ -122,13 +158,13 @@ func TestTransport_EventBridgeTransport_RealClientSatsfiesInterface(t *testing.T
 	t.Parallel()
 	cfg := aws.NewConfig()
 	eb := eventbridge.NewFromConfig(*cfg)
-	_ = rivulet.NewPublisher("test", rivulet.WithEventBridgeTransport(eb))
+	_, _ = rivulet.NewMemoryPublisher("test", rivulet.WithEventBridgeTransport(eb))
 }
 
 func TestTransport_EventBridgeTransport(t *testing.T) {
 	t.Parallel()
 	client := &DummyEventBridge{}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client))
+	p, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithEventBridgeTransport(client))
 	for _, line := range []string{"first line", "second line"} {
 		err := p.Publish(line)
 		if err != nil {
@@ -148,7 +184,7 @@ func TestTransport_EventBridgeTransport(t *testing.T) {
 
 func TestNetworkTransport_FailsGracefullyWithBadURL(t *testing.T) {
 	t.Parallel()
-	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport("httttp://badurl"))
+	p, _ := rivulet.NewMemoryPublisher("test", rivulet.WithNetworkTransport("httttp://badurl"))
 	err := p.Publish("a line")
 	if err == nil {
 		t.Errorf("got nil, want error")
@@ -159,7 +195,7 @@ func TestNetworkTransport_FailsGracefullyWithBadHTTPResponseCode(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(nil)
 	defer server.Close()
-	p := rivulet.NewPublisher("test", rivulet.WithNetworkTransport(server.URL))
+	p, _ := rivulet.NewMemoryPublisher("test", rivulet.WithNetworkTransport(server.URL))
 	err := p.Publish("a line")
 	if err == nil {
 		t.Errorf("got nil, want error")
@@ -169,7 +205,7 @@ func TestNetworkTransport_FailsGracefullyWithBadHTTPResponseCode(t *testing.T) {
 func TestEventBridgeTransport_DetectsFailedPublishAttempts(t *testing.T) {
 	t.Parallel()
 	client := &BrokenEventBridge{}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client))
+	p, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithEventBridgeTransport(client))
 	err := p.Publish("a line")
 	if err == nil {
 		t.Errorf("got nil, want error")
@@ -180,7 +216,7 @@ func TestEventBridgeTransport_DetectsFailedPublishAttempts(t *testing.T) {
 func TestEventBridgeTransport_CanSetUpWithDifferentOptions(t *testing.T) {
 	t.Parallel()
 	client := &DummyEventBridge{}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(
+	p, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithEventBridgeTransport(
 		client,
 		rivulet.WithDetailType("test"),
 		rivulet.WithSource("test"),
@@ -223,7 +259,7 @@ func TestEventBridgeTransport_CanTakeUserProvidedMessageTransform(t *testing.T) 
 		}
 		return string(data), nil
 	}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
+	p, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
 	err := p.Publish("a line")
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +280,7 @@ func TestEventBridgeTransport_AWellDefinedUserTransformErroringIsHandledByPublis
 	transform := func(rivulet.Message) (string, error) {
 		return "", fmt.Errorf("a user transform that correctly handles its errors")
 	}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
+	p, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
 	err := p.Publish("a line")
 	if err == nil {
 		t.Errorf("got nil, want error")
@@ -257,7 +293,7 @@ func TestEventBridgeTransport_APoorlyDefinedUserTransformIsCaughtByPublish(t *te
 	transform := func(rivulet.Message) (string, error) {
 		return "", nil
 	}
-	p := rivulet.NewPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
+	p, _ := rivulet.NewMemoryPublisher("p1", rivulet.WithEventBridgeTransport(client, rivulet.WithTransform(transform)))
 	err := p.Publish("a line")
 	if err == nil {
 		t.Errorf("got nil, want error")

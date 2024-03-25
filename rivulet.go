@@ -2,6 +2,8 @@ package rivulet
 
 import (
 	"sync/atomic"
+
+	"github.com/mr-joshcrane/rivulet/store"
 )
 
 // Publishers are producers of messages.
@@ -22,21 +24,27 @@ type Message struct {
 }
 
 // PublisherOptions are functional options for configuring a [Publisher].
-// Pass them to [NewPublisher] at construction time.
+// Pass them to [NewMemoryPublisher] at construction time.
 type PublisherOptions func(*Publisher)
 
-// NewPublisher creates a new [Publisher] with the given name and options.
-
-func NewPublisher(name string, options ...PublisherOptions) *Publisher {
-	p := &Publisher{
+// NewMemoryPublisher creates a new [Publisher] with the given name and options.
+// By default, the [Publisher] uses an in-memory [Transport].
+func NewMemoryPublisher(name string, options ...PublisherOptions) (*Publisher, *Subscriber) {
+	memoryTransport := NewMemoryTransport()
+	subscriber := &Subscriber{
+		receiver: memoryTransport.GetReceiver(),
+		store:    store.NewMemoryStore(),
+	}
+	publisher := &Publisher{
 		name:      name,
 		counter:   atomic.Int64{},
-		transport: &InMemoryTransport{},
+		transport: memoryTransport,
 	}
 	for _, option := range options {
-		option(p)
+		option(publisher)
 	}
-	return p
+
+	return publisher, subscriber
 }
 
 func (p *Publisher) Counter() int64 {

@@ -37,8 +37,8 @@ func (t *InMemoryTransport) Publish(m Message) error {
 	return nil
 }
 
-func (t *InMemoryTransport) GetReceiver() InMemoryReceiver {
-	return InMemoryReceiver{messages: t.messages}
+func (t *InMemoryTransport) GetReceiver() *InMemoryReceiver {
+	return &InMemoryReceiver{messages: t.messages}
 }
 
 // NetworkTransport is a Transport that ships messages over the NetworkTransport

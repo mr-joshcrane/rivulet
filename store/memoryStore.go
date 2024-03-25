@@ -1,37 +1,24 @@
 package store
 
-import "bytes"
+import "fmt"
 
 type MemoryStore struct {
-	input chan (string)
-	buf   bytes.Buffer
-}
-
-func (s *MemoryStore) Receive() {
-	for {
-		data, ok := <-s.input
-		if !ok {
-			return
-		}
-		s.Write(data)
-	}
+	messages []Message
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		buf: bytes.Buffer{},
+		messages: []Message{},
 	}
 }
 
-func (s *MemoryStore) Write(data string) error {
-	_, err := s.buf.WriteString(data)
-	return err
+func (s *MemoryStore) Save(m []Message) error {
+	s.messages = append(s.messages, m...)
+	fmt.Println("messages in Save()", s.messages)
+	return nil
 }
 
-func (s *MemoryStore) Read() string {
-	return s.buf.String()
-}
-
-func (s *MemoryStore) Register(c chan (string)) {
-	s.input = c
+func (s *MemoryStore) Messages() []Message {
+	fmt.Println("messages in Messages()", s.messages)
+	return s.messages
 }
