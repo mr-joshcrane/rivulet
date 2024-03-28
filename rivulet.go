@@ -47,10 +47,14 @@ func NewMemoryPublisher(name string, options ...PublisherOptions) (*Publisher, *
 	return publisher, subscriber
 }
 
+// Counter allows a way for ordering in case transports
+// are not guaranteed to deliver in order.
 func (p *Publisher) Counter() int64 {
 	return p.counter.Load()
 }
 
+// Publish sends a message via a [Transport].
+// A Publisher is responsible for various metadata about the message.
 func (p *Publisher) Publish(str string) error {
 	p.counter.Add(1)
 	m := Message{
