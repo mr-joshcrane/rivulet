@@ -33,7 +33,7 @@ func NewMemoryPublisher(name string, options ...PublisherOptions) (*Publisher, *
 	memoryTransport := NewMemoryTransport()
 	subscriber := &Subscriber{
 		receiver: memoryTransport.GetReceiver(),
-		store:    store.NewMemoryStore(),
+		Store:    store.NewMemoryStore(),
 	}
 	publisher := &Publisher{
 		name:      name,

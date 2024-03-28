@@ -20,9 +20,10 @@ import (
 
 func TestPublisher_NewPublisherByDefaultCreatesAMemoryPublisherAndSubscriber(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*1000)
+	name := t.Name()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
 	defer cancel()
-	p, s := rivulet.NewMemoryPublisher(t.Name())
+	p, s := rivulet.NewMemoryPublisher(name)
 	go func() {
 		err := s.Receive(ctx)
 		if err != nil {
@@ -33,8 +34,11 @@ func TestPublisher_NewPublisherByDefaultCreatesAMemoryPublisherAndSubscriber(t *
 	if err != nil {
 		t.Fatalf("got %v, want nil", err)
 	}
-	time.Sleep(time.Millisecond * 2000)
-	messages, err := s.Messages()
+	for len(s.Store.Messages(name)) == 0 {
+		time.Sleep(time.Millisecond * 20)
+	}
+	cancel()
+	messages := s.Store.Messages(name)
 	if err != nil {
 		t.Fatal(err)
 	}

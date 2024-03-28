@@ -2,14 +2,13 @@ package rivulet
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/mr-joshcrane/rivulet/store"
 )
 
 type Subscriber struct {
 	receiver Receiver
-	store    store.Store
+	Store    store.Store
 }
 
 type Receiver interface {
@@ -45,23 +44,9 @@ func (s *Subscriber) Receive(ctx context.Context) error {
 			Content:   msg.Content,
 		})
 	}
-	err := s.store.Save(convertedMessages)
+	err := s.Store.Save(convertedMessages)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (s *Subscriber) Messages() ([]Message, error) {
-	messages := s.store.Messages()
-	fmt.Println(messages)
-	var m []Message
-	for _, msg := range messages {
-		m = append(m, Message{
-			Publisher: msg.Publisher,
-			Order:     msg.Order,
-			Content:   msg.Content,
-		})
-	}
-	return m, nil
 }

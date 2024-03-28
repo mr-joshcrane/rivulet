@@ -1,24 +1,44 @@
 package store
 
-import "fmt"
+import (
+	"sync"
+)
 
 type MemoryStore struct {
-	messages []Message
+	syncMap sync.Map
 }
+type Ledger map[int]string
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		messages: []Message{},
+		syncMap: sync.Map{},
 	}
 }
 
 func (s *MemoryStore) Save(m []Message) error {
-	s.messages = append(s.messages, m...)
-	fmt.Println("messages in Save()", s.messages)
+	for _, msg := range m {
+		p, ok := s.syncMap.Load(msg.Publisher)
+		if !ok {
+			s.syncMap.Store(msg.Publisher, Ledger{msg.Order: msg.Content})
+		} else {
+			p.(Ledger)[msg.Order] = msg.Content
+		}
+	}
 	return nil
 }
 
-func (s *MemoryStore) Messages() []Message {
-	fmt.Println("messages in Messages()", s.messages)
-	return s.messages
+func (s *MemoryStore) Messages(publisher string) []Message {
+	var m []Message
+	messages, ok := s.syncMap.Load(publisher)
+	if !ok {
+		return []Message{}
+	}
+	for k, v := range messages.(Ledger) {
+		m = append(m, Message{
+			Publisher: publisher,
+			Order:     k,
+			Content:   v,
+		})
+	}
+	return m
 }
