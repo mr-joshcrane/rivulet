@@ -8,5 +8,5 @@ type Message struct {
 type Store interface {
 	// Will be a []Message
 	Save([]Message) error
-	Messages(string) []Message
+	Messages(string) ([]Message, error)
 }

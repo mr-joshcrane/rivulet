@@ -10,7 +10,7 @@ import (
 // They deliver a [Message] to a [Receiver] via a [Transport].
 type Publisher struct {
 	name      string
-	transport Transport
+	Transport Transport
 	counter   atomic.Int64
 }
 
@@ -38,13 +38,33 @@ func NewMemoryPublisher(name string, options ...PublisherOptions) (*Publisher, *
 	publisher := &Publisher{
 		name:      name,
 		counter:   atomic.Int64{},
-		transport: memoryTransport,
+		Transport: memoryTransport,
 	}
 	for _, option := range options {
 		option(publisher)
 	}
 
 	return publisher, subscriber
+}
+
+func NewEventBridgePublisher(name string, eventBridge EventBridgeClient, opts ...EventBridgeTransportOptions) *Publisher {
+	eventBridgeTransport := &EventBridgeTransport{
+		EventBridge:  eventBridge,
+		detailType:   "rivulet",
+		source:       "rivulet",
+		eventBusName: "default",
+		transform:    DefaultTransform,
+	}
+	for _, opts := range opts {
+		opts(eventBridgeTransport)
+	}
+	publisher := &Publisher{
+		name:      name,
+		counter:   atomic.Int64{},
+		Transport: eventBridgeTransport,
+	}
+
+	return publisher
 }
 
 // Counter allows a way for ordering in case transports
@@ -62,5 +82,5 @@ func (p *Publisher) Publish(str string) error {
 		Order:     int(p.counter.Load()),
 		Content:   str,
 	}
-	return p.transport.Publish(m)
+	return p.Transport.Publish(m)
 }

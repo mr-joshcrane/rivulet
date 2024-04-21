@@ -21,7 +21,7 @@ type Transport interface {
 // should use the given [Transport] to deliver messages.
 func WithTransport(t Transport) PublisherOptions {
 	return func(p *Publisher) {
-		p.transport = t
+		p.Transport = t
 	}
 }
 
@@ -57,7 +57,7 @@ type NetworkTransport struct {
 // should use the given endpoint to deliver messages over the network
 func WithNetworkTransport(endpoint string) PublisherOptions {
 	return func(p *Publisher) {
-		p.transport = &NetworkTransport{endpoint: endpoint}
+		p.Transport = &NetworkTransport{endpoint: endpoint}
 	}
 }
 
@@ -159,7 +159,7 @@ func WithEventBridgeTransport(eventBridge EventBridgeClient, opts ...EventBridge
 		opt(transport)
 	}
 	return func(p *Publisher) {
-		p.transport = transport
+		p.Transport = transport
 	}
 }
 

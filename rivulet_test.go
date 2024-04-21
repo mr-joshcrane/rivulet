@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	ddbTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/google/go-cmp/cmp"
@@ -18,6 +21,97 @@ import (
 	"github.com/mr-joshcrane/rivulet"
 )
 
+type FakeMessageStore struct {
+	Messages []rivulet.Message
+}
+
+func (f FakeMessageStore) All() []rivulet.Message {
+	return f.Messages
+}
+func TestReader_NewMessages(t *testing.T) {
+	t.Parallel()
+	r := rivulet.NewReader("TestPublisherName")
+	r.Store = FakeMessageStore{
+		Messages: []rivulet.Message{
+			{Publisher: "TestPublisherName", Order: 1, Content: "first message"},
+		},
+	}
+	first := r.NewMessages()
+	if !cmp.Equal(first, []string{"first message"}) {
+		t.Fatalf(cmp.Diff(first, []string{"first message"}))
+	}
+	if len(r.NewMessages()) > 0 {
+		t.Fatalf("shouldn't be reading older messages twice")
+	}
+	r.Store = FakeMessageStore{
+		Messages: []rivulet.Message{
+			{Publisher: "TestPublisherName", Order: 1, Content: "first message"},
+			{Publisher: "TestPublisherName", Order: 2, Content: "second message"},
+		},
+	}
+	second := r.NewMessages()
+	if !cmp.Equal(second, []string{"second message"}) {
+		t.Fatalf(cmp.Diff(second, []string{"second message"}))
+	}
+}
+
+func TestParseQueryResults(t *testing.T) {
+	t.Parallel()
+	results := &dynamodb.QueryOutput{
+		Items: []map[string]ddbTypes.AttributeValue{
+			{
+				"Publisher": &ddbTypes.AttributeValueMemberS{Value: "publisherName"},
+				"Order":     &ddbTypes.AttributeValueMemberN{Value: "38"},
+				"Content":   &ddbTypes.AttributeValueMemberS{Value: "the second message"},
+			},
+			{
+				"Publisher": &ddbTypes.AttributeValueMemberS{Value: "publisherName"},
+				"Order":     &ddbTypes.AttributeValueMemberN{Value: "37"},
+				"Content":   &ddbTypes.AttributeValueMemberS{Value: "the first message"},
+			},
+		},
+	}
+	messages, err := rivulet.ParseQueryResults(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"the first message", "the second message"}
+	if !cmp.Equal(messages, want) {
+		t.Errorf(cmp.Diff(messages, want))
+	}
+}
+
+func TestRead(t *testing.T) {
+	t.Parallel()
+	req := rivulet.Query("PublisherName")
+	want := &dynamodb.QueryInput{
+		TableName:              aws.String("rivulet"),
+		KeyConditionExpression: aws.String("Publisher = :publisher"),
+		ExpressionAttributeValues: map[string]ddbTypes.AttributeValue{
+			":publisher": &ddbTypes.AttributeValueMemberS{Value: "PublisherName"},
+		},
+	}
+	ignore := cmpopts.IgnoreUnexported(dynamodb.QueryInput{}, ddbTypes.AttributeValueMemberS{})
+	if !cmp.Equal(req, want, ignore) {
+		t.Errorf(cmp.Diff(req, want, ignore))
+
+	}
+}
+
+func TestSetupEventBridgeInfrastructure(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Region = "us-west-2"
+	eb := eventbridge.NewFromConfig(cfg)
+	p := rivulet.NewEventBridgePublisher("test", eb)
+	err = rivulet.SetupEventBridgeReceiverInfrastructure(cfg, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 func TestPublisher_NewPublisherByDefaultCreatesAMemoryPublisherAndSubscriber(t *testing.T) {
 	t.Parallel()
 	name := t.Name()
@@ -34,11 +128,18 @@ func TestPublisher_NewPublisherByDefaultCreatesAMemoryPublisherAndSubscriber(t *
 	if err != nil {
 		t.Fatalf("got %v, want nil", err)
 	}
-	for len(s.Store.Messages(name)) == 0 {
+	for {
+		messages, err := s.Store.Messages(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(messages) > 0 {
+			break
+		}
 		time.Sleep(time.Millisecond * 20)
 	}
 	cancel()
-	messages := s.Store.Messages(name)
+	messages, err := s.Store.Messages(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +175,7 @@ func TestPublisher_KeepsTrackOfNumberOfMessagesPublished(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
 	defer cancel()
-	got := reciever.Receive(ctx)
+	got, _ := reciever.Receive(ctx)
 	if p.Counter() != 100 {
 		t.Errorf("publisher should have published 100 messages, got %d", p.Counter())
 	}
@@ -105,7 +206,7 @@ func TestPublisher_CanDifferentiateMessagesFromDifferentPublishers(t *testing.T)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*20)
 	defer cancel()
-	messages := receiver.Receive(ctx)
+	messages, _ := receiver.Receive(ctx)
 	publishers := groupByPublisher(messages)
 	if len(publishers) != 2 {
 		t.Errorf("transport should have 2 publishers, got %d", len(publishers))

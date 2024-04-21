@@ -27,11 +27,11 @@ func (s *MemoryStore) Save(m []Message) error {
 	return nil
 }
 
-func (s *MemoryStore) Messages(publisher string) []Message {
+func (s *MemoryStore) Messages(publisher string) ([]Message, error) {
 	var m []Message
 	messages, ok := s.syncMap.Load(publisher)
 	if !ok {
-		return []Message{}
+		return []Message{}, nil
 	}
 	for k, v := range messages.(Ledger) {
 		m = append(m, Message{
@@ -40,5 +40,5 @@ func (s *MemoryStore) Messages(publisher string) []Message {
 			Content:   v,
 		})
 	}
-	return m
+	return m, nil
 }
