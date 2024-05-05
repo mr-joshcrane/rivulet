@@ -61,6 +61,8 @@ github.com/mr-joshcrane/glambda v0.0.0-20240505043658-2676c0ffd33f h1:XjYkX0y5f5
 github.com/mr-joshcrane/glambda v0.0.0-20240505043658-2676c0ffd33f/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
 github.com/mr-joshcrane/glambda v0.0.0-20240505044747-a6bb4fc760be h1:wgdVZ1KzA/HZwvXuu1zWBSmZZetfzjo5sRcg7A4GU4w=
 github.com/mr-joshcrane/glambda v0.0.0-20240505044747-a6bb4fc760be/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
+github.com/mr-joshcrane/glambda v0.0.0-20240505061857-2b3504bf00f4 h1:SbM810AuiZz60nq3uJU33+33nkzFET5bgUWDo4XA6mw=
+github.com/mr-joshcrane/glambda v0.0.0-20240505061857-2b3504bf00f4/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

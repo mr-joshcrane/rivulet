@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.30.4
 	github.com/google/go-cmp v0.6.0
-	github.com/mr-joshcrane/glambda v0.0.0-20240505044747-a6bb4fc760be
+	github.com/mr-joshcrane/glambda v0.0.0-20240505061857-2b3504bf00f4
 )
 
 require (
