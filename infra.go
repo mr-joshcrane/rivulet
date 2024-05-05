@@ -60,10 +60,10 @@ func SetupEventBridgeReceiverInfrastructure(cfg aws.Config, p *Publisher) error 
 		return err
 	}
 	if len(result.Items) == 0 {
-		return fmt.Errorf("No items found")
+		return fmt.Errorf("no items found")
 	}
 	if len(result.Items) > 1 {
-		return fmt.Errorf("Multiple items found")
+		return fmt.Errorf("multiple items found")
 	}
 	messages, err := ParseQueryResults(result)
 	if err != nil {
@@ -99,14 +99,17 @@ func createEventBridgeRule(cfg aws.Config, name string, targetARN string) error 
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(out)
+	_, err = json.Marshal(out)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(data))
 	return err
 }
 
 func createLambdaFunction(cfg aws.Config, name string) error {
-	return glambda.Deploy(name, "cmd/lambda/main.go")
+	inlinePolicy := glambda.WithInlinePolicy(`{"Version": "2012-10-17","Statement":{"Effect": "Allow","Action": "dynamodb:*","Resource": "*"}}`)
+	executionRole := glambda.WithExecutionRole("rivulet-lambda-role", inlinePolicy)
+	resourcePolicy := glambda.WithResourcePolicy("events.amazonaws.com")
+	l := glambda.NewLambda(name, "cmd/lambda/main.go", executionRole, resourcePolicy, glambda.WithAWSConfig(cfg))
+	return l.Deploy()
 }
