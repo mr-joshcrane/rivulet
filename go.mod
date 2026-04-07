@@ -11,7 +11,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.30.4
 	github.com/google/go-cmp v0.6.0
-	github.com/google/uuid v1.6.0
 	github.com/mr-joshcrane/glambda v0.0.0-20240505061857-2b3504bf00f4
 )
 
@@ -32,5 +31,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6 // indirect
 	github.com/aws/smithy-go v1.20.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )

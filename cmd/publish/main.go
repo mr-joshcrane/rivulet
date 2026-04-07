@@ -10,7 +10,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
-	"github.com/google/uuid"
 	"github.com/mr-joshcrane/rivulet"
 )
 
@@ -30,7 +29,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	state := loadOrCreateState(name)
+	runID := os.Getenv("RIVULET_RUN_ID")
+	if runID == "" {
+		fmt.Fprintln(os.Stderr, "RIVULET_RUN_ID must be set")
+		os.Exit(1)
+	}
+
+	state := loadOrCreateState(name, runID)
 	state.Order++
 	saveState(name, state)
 
@@ -93,15 +98,16 @@ func statePath(name string) string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("rivulet-%s.json", name))
 }
 
-func loadOrCreateState(name string) runState {
+func loadOrCreateState(name, runID string) runState {
 	data, err := os.ReadFile(statePath(name))
 	if err != nil {
-		return runState{ID: uuid.New().String(), Order: 0}
+		return runState{ID: runID, Order: 0}
 	}
 	var state runState
 	if json.Unmarshal(data, &state) != nil {
-		return runState{ID: uuid.New().String(), Order: 0}
+		return runState{ID: runID, Order: 0}
 	}
+	state.ID = runID
 	return state
 }
 
