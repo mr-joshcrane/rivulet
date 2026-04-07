@@ -18,8 +18,6 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 h1:hT8rVHwugYE2lEfdFE0QWVo81lF7
 github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0/go.mod h1:8tu/lYfQfFe6IGnaOdrpVgEL2IrrDOf6/m9RQum4NkY=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.5 h1:81KE7vaZzrl7yHBYHVEzYB8sypz11NMOZ40YlWvPxsU=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.5/go.mod h1:LIt2rg7Mcgn09Ygbdh/RdIm0rQ+3BNkbP1gyVMFtRK0=
-github.com/aws/aws-sdk-go-v2/service/dynamodb v1.31.1 h1:dZXY07Dm59TxAjJcUfNMJHLDI/gLMxTRZefn2jFAVsw=
-github.com/aws/aws-sdk-go-v2/service/dynamodb v1.31.1/go.mod h1:lVLqEtX+ezgtfalyJs7Peb0uv9dEpAQP5yuq2O26R44=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.32.0 h1:tGV+9T7NwSJNky5tGLh6/i7CoIkd9fPiGWDn9u4PWgI=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.32.0/go.mod h1:lVLqEtX+ezgtfalyJs7Peb0uv9dEpAQP5yuq2O26R44=
 github.com/aws/aws-sdk-go-v2/service/eventbridge v1.30.4 h1:Vz4ilZcVXCR9yatX5yfMrkBldYggtkih3h7woHvzu5Q=
@@ -53,14 +51,6 @@ github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9Y
 github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
 github.com/jmespath/go-jmespath/internal/testify v1.5.1 h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=
 github.com/jmespath/go-jmespath/internal/testify v1.5.1/go.mod h1:L3OGu8Wl2/fWfCI6z80xFu9LTZmf1ZRjMHUOPmWr69U=
-github.com/mr-joshcrane/glambda v0.0.0-20240418210617-d9463909f5a0 h1:5LTNBp64/xVVvafOTWi58cDPc1fJYBg+Aq0mK/WvMEo=
-github.com/mr-joshcrane/glambda v0.0.0-20240418210617-d9463909f5a0/go.mod h1:9dyCeN9+Lr3RYInsEZXxyregDH+qUXkwl/j3ihVOS34=
-github.com/mr-joshcrane/glambda v0.0.0-20240427114250-ecc4d09208bb h1:Wi+zrDQ0Hd1//Nqa3GkRGagkFOIwQjSynLw29h2hP0M=
-github.com/mr-joshcrane/glambda v0.0.0-20240427114250-ecc4d09208bb/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
-github.com/mr-joshcrane/glambda v0.0.0-20240505043658-2676c0ffd33f h1:XjYkX0y5f5txhYPbU8sKdRMvRo1ocGjNdWLzmRpljj4=
-github.com/mr-joshcrane/glambda v0.0.0-20240505043658-2676c0ffd33f/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
-github.com/mr-joshcrane/glambda v0.0.0-20240505044747-a6bb4fc760be h1:wgdVZ1KzA/HZwvXuu1zWBSmZZetfzjo5sRcg7A4GU4w=
-github.com/mr-joshcrane/glambda v0.0.0-20240505044747-a6bb4fc760be/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
 github.com/mr-joshcrane/glambda v0.0.0-20240505061857-2b3504bf00f4 h1:SbM810AuiZz60nq3uJU33+33nkzFET5bgUWDo4XA6mw=
 github.com/mr-joshcrane/glambda v0.0.0-20240505061857-2b3504bf00f4/go.mod h1:gTyU0U1znW/wAFfpgyyyw3GB6FFIKCDz8zBvf8UdJQw=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
