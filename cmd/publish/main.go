@@ -14,6 +14,11 @@ import (
 	"github.com/mr-joshcrane/rivulet"
 )
 
+type runState struct {
+	ID    string `json:"id"`
+	Order int    `json:"order"`
+}
+
 func main() {
 	source := envOrDefault("RIVULET_SOURCE", "rivulet")
 	bus := envOrDefault("RIVULET_BUS", "default")
@@ -25,7 +30,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	runID := loadOrCreateRunID(name)
+	state := loadOrCreateState(name)
+	state.Order++
+	saveState(name, state)
 
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
@@ -56,7 +63,7 @@ func main() {
 	}
 
 	publisher := rivulet.NewEventBridgePublisher(
-		name+" "+runID,
+		name+" "+state.ID,
 		client,
 		rivulet.WithSource(source),
 		rivulet.WithEventBusName(bus),
@@ -64,7 +71,12 @@ func main() {
 		rivulet.WithTransform(rivulet.DefaultTransform),
 	)
 
-	if err := publisher.Publish(message); err != nil {
+	msg := rivulet.Message{
+		Publisher: name + " " + state.ID,
+		Order:     state.Order,
+		Content:   message,
+	}
+	if err := publisher.Transport.Publish(msg); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to publish: %v\n", err)
 		os.Exit(1)
 	}
@@ -77,16 +89,26 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
-func runIDPath(name string) string {
-	return filepath.Join(os.TempDir(), fmt.Sprintf("rivulet-%s.id", name))
+func statePath(name string) string {
+	return filepath.Join(os.TempDir(), fmt.Sprintf("rivulet-%s.json", name))
 }
 
-func loadOrCreateRunID(name string) string {
-	data, err := os.ReadFile(runIDPath(name))
-	if err == nil && len(data) > 0 {
-		return strings.TrimSpace(string(data))
+func loadOrCreateState(name string) runState {
+	data, err := os.ReadFile(statePath(name))
+	if err != nil {
+		return runState{ID: uuid.New().String(), Order: 0}
 	}
-	id := uuid.New().String()
-	os.WriteFile(runIDPath(name), []byte(id), 0644)
-	return id
+	var state runState
+	if json.Unmarshal(data, &state) != nil {
+		return runState{ID: uuid.New().String(), Order: 0}
+	}
+	return state
+}
+
+func saveState(name string, state runState) {
+	data, err := json.Marshal(state)
+	if err != nil {
+		return
+	}
+	os.WriteFile(statePath(name), data, 0644)
 }
